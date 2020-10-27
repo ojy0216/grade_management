@@ -17,7 +17,7 @@ root.withdraw()
 
 doc_path = path.expanduser("~\\Documents")
 download_path = path.expanduser("~\\Downloads\\noname.xlsx")
-log_path = path.join(doc_path, 'GM_Log.txt')  # log 파일 경로
+log_path = path.join(doc_path, 'GM_dir.dat')  # log 파일 경로
 
 
 # 백분율성적
@@ -46,7 +46,10 @@ def main(original_file=True):
                 f.write(file_path)
                 f.close()
     else:
-        file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
+        while True:
+            file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
+            if path.basename(file_path) == 'noname.xlsx':
+                break
 
     wb = load_workbook(file_path)
     ws = wb.active
