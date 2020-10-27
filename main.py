@@ -48,8 +48,11 @@ def main(original_file=True):
     else:
         while True:
             file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
-            if path.basename(file_path) == 'noname.xlsx':
+            _, extension = path.splitext(file_path)
+            if extension == '.xlsx':
                 break
+            else:
+                print("\n Not a .xlsx file")
 
     wb = load_workbook(file_path)
     ws = wb.active
@@ -221,11 +224,9 @@ if __name__ == '__main__':
         modify_file = input('\n Want to modify grade? (Y/N): ').upper()
         if modify_file == 'Y':
             os.startfile(file_path)
-            restart = input('\n Want to restart program? (Y/N): ').upper()
-            if restart == 'Y':
-                main(original_file=False)
-            else:
-                break
+        restart = input('\n Want to restart program? (Y/N): ').upper()
+        if restart == 'Y':
+            main(original_file=False)
         else:
             break
 

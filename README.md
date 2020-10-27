@@ -1,4 +1,4 @@
-# Grade Management for CAU students(v0.1)
+# Grade Management for CAU students(v0.2)
 * 중앙대학교 학생들을 위한 성적확인 및 계산 프로그램입니다.
 * 현재 재수강은 반영되지 않아, 열람용 성적만 조회 가능합니다. 
 ##  사용법
