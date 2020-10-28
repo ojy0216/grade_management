@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import filedialog
+from tkinter import messagebox
 from openpyxl import load_workbook
 import os
 from os import path
@@ -29,33 +30,70 @@ def percentage(gpa):
 def main(original_file=True):
     file_path = None
     need_dir_input = True
+    need_log_creation = False
+    from_log = False
+    from_download = False
 
-    if original_file:
-        if path.isfile(download_path):  # download 폴더에 파일이 있는 경우
-            file_path = download_path
-        else:
-            if path.isfile(log_path):  # 기존에 파일 위치를 아는 경우
-                f = open(log_path, 'r')  # 로그 파일에서 파일 경로 읽음
-                file_path = f.readline()
-                if path.basename(file_path) == 'noname.xlsx':
-                    need_dir_input = False
-                f.close()
-            if need_dir_input:  # 파일 위치를 모르는 경우 파일 위치를 입력받음
-                file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
-                f = open(log_path, 'w')  # 파일 위치 저장하는 log 파일 생성
-                f.write(file_path)
-                f.close()
-    else:
-        while True:
-            file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
-            _, extension = path.splitext(file_path)
-            if extension == '.xlsx':
-                break
+    while True:
+        if original_file:  # 프로그램 첫 실행 시
+            if path.isfile(download_path):  # download 폴더에 파일이 있는 경우
+                file_path = download_path
+                from_download = True
             else:
-                print("\n Not a .xlsx file")
+                if path.isfile(log_path):  # 기존에 파일 위치를 아는 경우
+                    from_log = True
+                    f = open(log_path, 'r')  # 로그 파일에서 파일 경로 읽음
+                    file_path = f.readline()
+                    _, extension = path.splitext(file_path)
+                    if extension == '.xlsx':
+                        need_dir_input = False
+                    else:
+                        os.remove(log_path)  # 로그 파일이 문제있을 경우 파일 삭제
+                    f.close()
+                if need_dir_input:  # 파일 위치를 모르는 경우 파일 위치를 입력받음
+                    while True:
+                        file_path = filedialog.askopenfilename(
+                            parent=root, initialdir="/",  title='Please select a file')
+                        if not file_path:  # 취소 선택시
+                            return -1
+                        _, extension = path.splitext(file_path)
+                        if extension == '.xlsx':
+                            break
+                        else:
+                            messagebox.showerror('Error', 'xlsx 파일이 아닙니다.')
+                    need_log_creation = True
+        else:  # 프로그램 재시작 시
+            while True:
+                file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
+                if not file_path:  # 취소 선택시
+                    return -1
+                _, extension = path.splitext(file_path)
+                if extension == '.xlsx':
+                    break
+                else:
+                    messagebox.showerror('Error', 'xlsx 파일이 아닙니다.')
 
-    wb = load_workbook(file_path)
-    ws = wb.active
+        wb = load_workbook(file_path)
+        ws = wb.active
+
+        file_title = ws['D2'].value
+        if (file_title == '성 적 내 역') and need_log_creation:
+            f = open(log_path, 'w')  # 파일 위치 저장하는 log 파일 생성
+            f.write(file_path)
+            f.close()
+        elif file_title != '성 적 내 역':  # xlsx 파일은 맞으나 성적파일이 아닐 경우
+            if from_log:  # 로그 파일위치의 파일이 문제가 있는 경우
+                messagebox.showerror('Error', '{} 파일이 손상된 것 같습니다.\n파일을 다시 다운로드 해주세요.'.format(file_path))
+                os.remove(log_path)
+                return -1
+            if from_download:  # 다운로드 폴더 파일이 문제가 있는 경우
+                messagebox.showerror('Error', '{} 파일이 손상된 것 같습니다.\n파일을 다시 다운로드 해주세요.'.format(download_path))
+                return -1
+            else:
+                messagebox.showerror('Error', '성적 파일이 아닙니다.\n유효한 파일을 선택해주세요.')
+            continue
+
+        break
 
     system('cls')
     print()
@@ -73,6 +111,7 @@ def main(original_file=True):
         'm_grade': 0,  # 전공 평점
         'wm_credit': 0,  # 전공 학점(전공기초 포함)
         'wm_grade': 0,  # 전공 평점(전공기초 포함)
+        'la_credit': 0,  # 교양 학점
         'pf_credit': 0,  # PF 학점
     }
     total_grade = semester_grade
@@ -109,6 +148,8 @@ def main(original_file=True):
                         semester_grade['wm_credit'] += float(grade_row_readout[6])
                         # 전공 평점(전공기초 포함)
                         semester_grade['wm_grade'] += float(grade_row_readout[6]) * float(grade_row_readout[8])
+                    if grade_row_readout[2] == '교양':
+                        semester_grade['la_credit'] += float(grade_row_readout[6])
                     if grade_row_readout[8] == 'P/F':
                         # PF 학점
                         semester_grade['pf_credit'] += float(grade_row_readout[6])
@@ -160,10 +201,20 @@ def main(original_file=True):
         ave_wide_major_grade = 'N/A'
 
     print('=' * 115)
-    print(" 총취득학점: {} | 총평균평점: {} | 총평균전공평점: {} | 총평균전공평점(전공기초 포함): {} | GPA: {}".
-          format(str(total_credit).center(5), str(ave_grade).ljust(5), str(ave_major_grade).ljust(5),
-                 str(ave_wide_major_grade).ljust(5), percentage(ave_grade)))
+    print("\t총취득학점: {} | 총취득전공학점: {} | 총취득전공학점(전공기초 포함): {} | 총취득교양학점: {}".format(
+        str(total_credit).center(5),
+        str(total_grade['m_credit']).ljust(5),
+        str(total_grade['wm_credit']).ljust(5),
+        str(total_grade['la_credit']).ljust(5)
+    ))
     print('-' * 115)
+    print("\t총평균평점: {} | 총평균전공평점: {} | 총평균전공평점(전공기초 포함): {} | GPA: {}".format(
+        str(ave_grade).ljust(5),
+        str(ave_major_grade).ljust(5),
+        str(ave_wide_major_grade).ljust(5),
+        percentage(ave_grade)
+    ))
+    print('=' * 115)
 
     sim_total_grade = copy.deepcopy(total_grade)
 
@@ -185,19 +236,19 @@ def main(original_file=True):
         try:
             sim_credit = float(input(" 희망 학점: "))
             if sim_credit <= 0:
-                print(" 학점 입력 오류")
+                messagebox.showwarning('Warning', '학점 입력 오류')
                 continue
         except ValueError:
-            print(" 학점 입력 오류")
+            messagebox.showwarning('Warning', '학점 입력 오류')
             continue
 
         try:
             sim_grade = float(input(" 희망 평점: "))
             if (sim_grade < 0) or (sim_grade > 4.5):
-                print(" 평점 입력 오류: 입력 가능 범위 = 0 ~ 4.5")
+                messagebox.showwarning('Warning', '평점 입력 오류: 입력 가능 범위 = 0 ~ 4.5')
                 continue
         except ValueError:
-            print(" 평점 입력 오류")
+            messagebox.showwarning('Warning', '평점 입력 오류')
             continue
 
         previous_ave_grade = round(sim_total_grade['grade'] / sim_total_grade['credit'], 3)
@@ -206,7 +257,6 @@ def main(original_file=True):
 
         new_total_credit = sim_total_grade['credit'] + sim_total_grade['pf_credit']
         new_ave_grade = round(sim_total_grade['grade'] / sim_total_grade['credit'], 3)
-        sim_trunc_grade = round(sim_total_grade['grade'] / sim_total_grade['credit'], 3)
 
         print('-' * 115)
         print(" 총취득학점: {0}({1:+.01f}) | 총평균평점: {2}({3:+.03f}) | GPA: {4}({5:+.02f})".
@@ -221,12 +271,16 @@ def main(original_file=True):
 if __name__ == '__main__':
     file_path = main()
     while True:
+        if file_path == -1:
+            break
         modify_file = input('\n Want to modify grade? (Y/N): ').upper()
         if modify_file == 'Y':
             os.startfile(file_path)
         restart = input('\n Want to restart program? (Y/N): ').upper()
         if restart == 'Y':
-            main(original_file=False)
+            user_exit = main(original_file=False)
+            if user_exit == -1:
+                break
         else:
             break
 
