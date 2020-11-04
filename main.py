@@ -27,20 +27,41 @@ def percentage(gpa):
     return round(60 + ((gpa - 1) * 40 / 3.5), 2)
 
 
+def ask_dir():
+    while True:
+        file_path = filedialog.askopenfilename(
+            parent=root, initialdir="/", title='Please select a file')
+        if not file_path:  # 취소 선택시
+            return -1
+        _, extension = path.splitext(file_path)
+        if extension == '.xlsx':
+            return file_path
+        else:
+            messagebox.showerror('Error', 'xlsx 파일이 아닙니다.')
+
+
 def main(original_file=True):
     file_path = None
     need_dir_input = True
     need_log_creation = False
     from_log = False
     from_download = False
+    need_manual = True
 
     while True:
-        if original_file:  # 프로그램 첫 실행 시
-            if path.isfile(download_path):  # download 폴더에 파일이 있는 경우
+        if path.isfile(download_path):  # download 폴더에 파일이 있는 경우
+            flag = messagebox.askquestion('File Found', '원본 파일을 찾았습니다.\n원본 파일을 사용하시겠습니까?')
+            if flag == 'yes':
                 file_path = download_path
                 from_download = True
             else:
-                if path.isfile(log_path):  # 기존에 파일 위치를 아는 경우
+                file_path = ask_dir()
+                if file_path == -1:
+                    return -1
+        else:
+            if path.isfile(log_path):  # 기존의 파일 위치를 아는 경우
+                flag = messagebox.askquestion('File Found', '원본 파일을 찾았습니다.\n원본 파일을 사용하시겠습니까?')
+                if flag == 'yes':
                     from_log = True
                     f = open(log_path, 'r')  # 로그 파일에서 파일 경로 읽음
                     file_path = f.readline()
@@ -50,28 +71,17 @@ def main(original_file=True):
                     else:
                         os.remove(log_path)  # 로그 파일이 문제있을 경우 파일 삭제
                     f.close()
-                if need_dir_input:  # 파일 위치를 모르는 경우 파일 위치를 입력받음
-                    while True:
-                        file_path = filedialog.askopenfilename(
-                            parent=root, initialdir="/",  title='Please select a file')
-                        if not file_path:  # 취소 선택시
-                            return -1
-                        _, extension = path.splitext(file_path)
-                        if extension == '.xlsx':
-                            break
-                        else:
-                            messagebox.showerror('Error', 'xlsx 파일이 아닙니다.')
-                    need_log_creation = True
-        else:  # 프로그램 재시작 시
-            while True:
-                file_path = filedialog.askopenfilename(parent=root, initialdir="/", title='Please select a file')
-                if not file_path:  # 취소 선택시
-                    return -1
-                _, extension = path.splitext(file_path)
-                if extension == '.xlsx':
-                    break
                 else:
-                    messagebox.showerror('Error', 'xlsx 파일이 아닙니다.')
+                    file_path = ask_dir()
+                    if file_path == -1:
+                        return -1
+                    need_dir_input = False
+            if need_dir_input:  # 파일 위치를 모르는 경우 파일 위치를 입력받음
+                file_path = ask_dir()
+                need_log_creation = True
+
+        if not original_file:
+            need_log_creation = False
 
         wb = load_workbook(file_path)
         ws = wb.active
@@ -220,12 +230,12 @@ def main(original_file=True):
 
     # 미래 성적 계산
     while True:
-        flag = input("\n 다음 학기 Simulation(Y/N, R for reset): ").upper()
+        flag = input("\n 다음 학기 Simulation(Y/N, M for manual, R for reset): ").upper()
 
-        if flag not in ('Y', 'R'):
+        if flag not in ('Y', 'M', 'R'):
             break
 
-        if flag == 'R':
+        if flag == 'R':  # Reset
             sim_total_grade = copy.deepcopy(total_grade)
             print('-' * 115)
             print(" [현재 시점]  총취득학점 : {} | 총평균평점: {} | 총평균전공평점: {} | GPA: {}".
@@ -233,23 +243,80 @@ def main(original_file=True):
             print('-' * 115)
             continue
 
-        try:
-            sim_credit = float(input(" 희망 학점: "))
-            if sim_credit <= 0:
+        elif flag == 'M':  # Manual
+            sim_credit = 0
+            sim_grade = 0
+            tmp_sim_grade = 0
+            grade_dict = {
+                'A+': 4.5,
+                'A': 4,
+                'B+': 3.5,
+                'B': 3,
+                'C+': 2.5,
+                'C': 2,
+                'D+': 1.5,
+                'D': 1,
+                'F': 0,
+                'P': 0
+            }
+            if need_manual:
+                messagebox.showinfo('Manual Input',
+                                    '학점과 성적을 공백으로 구분하여\n하나씩 입력해주세요.\n\n입력 예시:\n[1]: 3 a+\n[2]: 2 B\n\n-1 을 입력하여 종료')
+                need_manual = False
+            i = 1
+            while True:
+                tmp = input(' [{}]: '.format(i))
+                try:
+                    tmp_credit, tmp_grade = tmp.split()
+                    tmp_grade = tmp_grade.upper()
+                except ValueError:
+                    try:
+                        if float(tmp) <= 0:
+                            sim_grade = tmp_sim_grade / sim_credit
+                            print('-' * 115)
+                            print(' [입력] 학점: {} | 평균평점: {}'.format(sim_credit, sim_grade))
+                            break
+                    except ValueError:
+                        messagebox.showwarning('Warning', '학점 입력 오류')
+                        continue
+                    messagebox.showwarning('Warning', '입력 오류')
+                    continue
+
+                try:
+                    tmp_credit = float(tmp_credit)
+                except ValueError:
+                    messagebox.showwarning('Warning', '학점 입력 오류')
+                    continue
+
+                if tmp_grade in grade_dict.keys():
+                    if tmp_grade == 'P':
+                        sim_total_grade['pf_credit'] += sim_credit
+                    else:
+                        sim_credit += tmp_credit
+                        tmp_sim_grade += grade_dict[tmp_grade] * tmp_credit
+                    i += 1
+                else:
+                    messagebox.showwarning('Warning', '평점 입력 오류')
+                    continue
+
+        else:  # Only credit, grade
+            try:
+                sim_credit = float(input(" 희망 학점: "))
+                if sim_credit <= 0:
+                    messagebox.showwarning('Warning', '학점 입력 오류')
+                    continue
+            except ValueError:
                 messagebox.showwarning('Warning', '학점 입력 오류')
                 continue
-        except ValueError:
-            messagebox.showwarning('Warning', '학점 입력 오류')
-            continue
 
-        try:
-            sim_grade = float(input(" 희망 평점: "))
-            if (sim_grade < 0) or (sim_grade > 4.5):
-                messagebox.showwarning('Warning', '평점 입력 오류: 입력 가능 범위 = 0 ~ 4.5')
+            try:
+                sim_grade = float(input(" 희망 평점: "))
+                if (sim_grade < 0) or (sim_grade > 4.5):
+                    messagebox.showwarning('Warning', '평점 입력 오류: 입력 가능 범위 = 0 ~ 4.5')
+                    continue
+            except ValueError:
+                messagebox.showwarning('Warning', '평점 입력 오류')
                 continue
-        except ValueError:
-            messagebox.showwarning('Warning', '평점 입력 오류')
-            continue
 
         previous_ave_grade = round(sim_total_grade['grade'] / sim_total_grade['credit'], 3)
         sim_total_grade['credit'] += sim_credit
