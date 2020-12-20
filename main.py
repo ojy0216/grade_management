@@ -13,6 +13,8 @@ title = "Grade Management"
 system("title " + title)
 system("mode con cols=115 lines=45")
 
+system("chcp 949")
+
 root = Tk()
 root.withdraw()
 
